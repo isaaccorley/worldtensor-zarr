@@ -8,8 +8,9 @@ export function cellAt(catalog: Catalog, lng: number, lat: number, factor = 1) {
   const res = resolution * factor;
   const off = ((factor - 1) * resolution) / 2;
   const lon360 = (((lng - lon_first) % 360) + 360) % 360;
-  const ny = Math.ceil(shape[0] / factor);
-  const nx = Math.ceil(shape[1] / factor);
+  // overview levels halve with the odd trailing row trimmed
+  const ny = Math.floor(shape[0] / factor);
+  const nx = Math.floor(shape[1] / factor);
   const row = Math.round((lat - lat_first - off) / res);
   const col = Math.round((lon360 - off) / res) % nx;
   if (row < 0 || row >= ny) return null;
@@ -54,6 +55,8 @@ export class Probe {
   }
 }
 
+const tsArrays = new Map<string, Promise<zarr.Array<zarr.DataType, zarr.Readable>>>();
+
 /** Full-resolution time series at one pixel from the sharded `ts` array. */
 export async function readSeries(
   store: zarr.Readable,
@@ -65,9 +68,14 @@ export async function readSeries(
   if (!v.arrays.ts) return null;
   const cell = cellAt(catalog, lng, lat);
   if (!cell) return null;
-  const arr = await zarr.open(zarr.root(store).resolve(`${v.path}/ts/${v.name}`), {
-    kind: "array",
-  });
+  // keep one opened array per variable: zarrita caches the shard index on the
+  // array instance, so reopening would refetch the (~66 KB) index every click
+  let pending = tsArrays.get(v.path);
+  if (!pending) {
+    pending = zarr.open(zarr.root(store).resolve(`${v.path}/ts/${v.name}`), { kind: "array" });
+    tsArrays.set(v.path, pending);
+  }
+  const arr = await pending;
   if (!arr.is("float32")) return null;
   const out = await zarr.get(arr, [null, cell.row, cell.col]);
   return out.data;

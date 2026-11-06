@@ -51,15 +51,16 @@ def main():
         g = unit["group_path"]
         ds = xr.open_zarr(STORE, group=g, consolidated=False)
         (v,) = [k for k in ds.data_vars if k != "spatial_ref"]
-        ms = ds.attrs["multiscales"][0]
+        ms = ds.attrs["multiscales"]  # zarr-conventions v0.1 layout (10_geozarr.py)
+        level_paths = ["." if "/" not in item["asset"] else item["asset"].split("/")[0] for item in ms["layout"]]
         arrays = {}
-        for lvl in [d["path"] for d in ms["datasets"]] + (["ts"] if "time" in ds[v].dims else []):
+        for lvl in level_paths + (["ts"] if "time" in ds[v].dims else []):
             sub = g if lvl == "." else f"{g}/{lvl}"
             arrays[lvl], meta = array_meta(STORE, sub, v)
             if template is None and lvl == ".":
                 template = {k: meta[k] for k in ("data_type", "fill_value", "codecs")}
         # color range from the 4x level (all years, small) - or coarsest available
-        stat_lvl = "4x" if "4x" in arrays else [d["path"] for d in ms["datasets"]][-1]
+        stat_lvl = "4x" if "4x" in arrays else level_paths[-1]
         sds = ds if stat_lvl == "." else xr.open_zarr(STORE, group=f"{g}/{stat_lvl}", consolidated=False)
         vals = sds[v].values
         finite = vals[np.isfinite(vals)]
@@ -76,7 +77,7 @@ def main():
             "units": a.get("units"),
             "long_name": a.get("long_name"),
             "years": compact_years(unit.get("years")),
-            "resampling": ms["resampling_method"],
+            "resampling": ms.get("resampling_method", "average"),
             "range": {"p2": p2, "p98": p98, "min": vmin, "max": vmax},
             "arrays": arrays,
         })
@@ -93,7 +94,7 @@ def main():
             "lon_first": float(lon[0]), "lon_last": float(lon[-1]),
             "resolution": float(lon[1] - lon[0]),
             "lat_order": "ascending" if lat[1] > lat[0] else "descending",
-            "note": "cell centers; lon in [0, 360); pyramid level k halves both dims (pad at edges)",
+            "note": "cell centers; lon in [0, 360); pyramid level k halves both dims (odd trailing row trimmed)",
         },
         "array_template": template,
         "variables": variables,

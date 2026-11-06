@@ -17,10 +17,11 @@ Chunk layout (tuned for a browser reading over HTTPS range requests):
   - base            : one year per chunk, 2x4 spatial tiles (set in 04_convert)
   - 2x              : one year per chunk, whole globe -> global view = 1 request
   - 4x and coarser  : all years per chunk -> one request loads the time slider
-  - <group>/ts      : base res, (all years, 64, 64) inner chunks in a single
+  - <group>/ts      : base res, (all years, 16, 16) inner chunks in a single
                       shard -> one small range request per clicked pixel
 
-Usage: 05_multiscale.py <manifest.jsonl> <line_index>
+Usage: 05_multiscale.py <manifest.jsonl> <line_index> [--ts-only]
+  --ts-only rewrites just the <group>/ts array (pyramid untouched)
 """
 import json
 import os
@@ -28,13 +29,12 @@ import sys
 
 import numpy as np
 import xarray as xr
-import zarr
 from scipy import stats
 from zarr.codecs import BloscCodec, BloscShuffle
 
 STORE = os.environ.get("WT_STORE", "/projects/bjey/worldtensor/zarr/worldtensor.zarr")
 MIN_DIM = 90  # stop pyramid once the coarsest side is roughly tile-sized
-TS_TILE = 64
+TS_TILE = 16  # 16x16 px tiles: ~40 KB per pixel-history read (lossless)
 
 
 def compressor():
@@ -57,7 +57,11 @@ def mode_reduce(block, axis):
 
 
 def coarsen_once(da: xr.DataArray, method: str) -> xr.DataArray:
-    c = da.coarsen(boundary="pad", lat=2, lon=2)
+    # trim, not pad: the 721-row grid includes both poles, so padding gives
+    # the last coarse row a centre of 90.0 that no affine transform matches.
+    # Trimming drops the odd 90N row from overviews only (base keeps it) and
+    # keeps every level exactly affine with coords inside +-90.
+    c = da.coarsen(boundary="trim", lat=2, lon=2)
     if method == "sum":
         return c.sum()
     if method == "mode":
@@ -83,18 +87,33 @@ def write_level(da, varname, attrs, spatial_ref, path, encoding_extra):
     ds.to_zarr(STORE, group=path, mode="w", zarr_format=3, encoding=enc, consolidated=False)
 
 
+def write_ts(base, varname, attrs, spatial_ref, group_path):
+    nt, ny, nx = base.sizes["time"], base.sizes["lat"], base.sizes["lon"]
+    ceil = lambda n: -(-n // TS_TILE) * TS_TILE  # noqa: E731
+    write_level(base, varname, attrs, spatial_ref, f"{group_path}/ts",
+                {"chunks": (nt, TS_TILE, TS_TILE), "shards": (nt, ceil(ny), ceil(nx))})
+
+
 def main():
     manifest_path, idx = sys.argv[1], int(sys.argv[2])
     with open(manifest_path) as fh:
         unit = json.loads(fh.readlines()[idx])
 
+    ts_only = "--ts-only" in sys.argv[3:]
     group_path = unit["group_path"]
     root = xr.open_zarr(STORE, group=group_path, consolidated=False)
     (varname,) = [v for v in root.data_vars if v != "spatial_ref"]
+    if ts_only and "time" not in root[varname].dims:
+        print(f"{group_path}: static, no ts array", file=sys.stderr)
+        return
     base = root[varname].load()
     method = resampling_method(varname, base.dtype)
     attrs = dict(base.attrs, resampling_method=method)
     spatial_ref = root["spatial_ref"].load()
+    if ts_only:
+        write_ts(base, varname, attrs, spatial_ref, group_path)
+        print(f"{group_path}: rewrote ts with {TS_TILE}x{TS_TILE} tiles", file=sys.stderr)
+        return
 
     levels = ["."]
     factor, current = 2, base
@@ -107,17 +126,19 @@ def main():
         factor *= 2
 
     if "time" in base.dims:
-        nt, ny, nx = base.sizes["time"], base.sizes["lat"], base.sizes["lon"]
-        ceil = lambda n: -(-n // TS_TILE) * TS_TILE  # noqa: E731
-        write_level(base, varname, attrs, spatial_ref, f"{group_path}/ts",
-                    {"chunks": (nt, TS_TILE, TS_TILE), "shards": (nt, ceil(ny), ceil(nx))})
+        write_ts(base, varname, attrs, spatial_ref, group_path)
 
-    grp = zarr.open_group(STORE, path=group_path, mode="r+")
-    grp.attrs["multiscales"] = [{
-        "tile_matrix_set": "WGS84Quad",
-        "resampling_method": method,
-        "datasets": [{"path": name} for name in levels],
-    }]
+    # drop level groups left over from a deeper earlier build (e.g. a 16x that
+    # trim halving no longer reaches)
+    import zarr
+
+    grp = zarr.open_group(STORE, path=group_path, mode="r+", use_consolidated=False)
+    for name, _ in list(grp.groups()):
+        if name.endswith("x") and name[:-1].isdigit() and name not in levels:
+            del grp[name]
+            print(f"{group_path}: removed stale level {name}", file=sys.stderr)
+
+    # multiscales / proj / spatial attrs are written by 10_geozarr.py
     print(f"{group_path}: built {len(levels) - 1} pyramid levels using {method}", file=sys.stderr)
 
 
