@@ -70,7 +70,7 @@ store straight over HTTP range requests — no tile server.
 
 ```bash
 cd web && npm install
-WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor_v2.zarr npm run dev   # serves the store at /data
+WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor.zarr npm run dev   # serves the store at /data
 VITE_DATA_URL=https://data.source.coop/taylor-geospatial/<repo>/worldtensor.zarr npm run build
 ```
 
@@ -86,6 +86,6 @@ VITE_DATA_URL=https://data.source.coop/taylor-geospatial/<repo>/worldtensor.zarr
 
 ## Status
 
-v2 store built (`worldtensor_v2.zarr`, 97 GB, lossless). Viewer runs locally
+Store built (`worldtensor.zarr`, lossless, GeoZarr-validated). Viewer runs locally
 against it. Next: rehost to Source Cooperative (`taylor-geospatial`) and point
 `VITE_DATA_URL` at it.
