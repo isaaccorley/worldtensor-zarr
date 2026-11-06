@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorldTensor</title>
+    <meta name="description" content="757 harmonized Earth-system variables streamed straight from Zarr on a WebGL globe." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="viewport">
+      <div id="map"></div>
+
+      <header class="brand glass">
+        <div class="brand-mark" aria-hidden="true">
+          <span class="brand-ring"></span><span class="brand-ring brand-ring-2"></span><span class="brand-core"></span>
+        </div>
+        <div class="brand-text">
+          <h1>WorldTensor</h1>
+          <p class="kicker" id="kicker">Earth system · 0.25°</p>
+        </div>
+        <span class="led" id="led" title="Streaming chunks"></span>
+      </header>
+
+      <aside class="panel glass" id="panel">
+        <label class="search">
+          <input id="q" type="search" placeholder="Search variables" autocomplete="off" spellcheck="false" />
+          <kbd>/</kbd>
+        </label>
+        <nav class="domains" id="domains"></nav>
+        <ul class="vars" id="vars"></ul>
+      </aside>
+
+      <footer class="timeline glass" id="timeline">
+        <div class="now">
+          <h2 id="var-title">—</h2>
+          <p class="mono" id="var-sub"></p>
+        </div>
+        <button class="play" id="play" title="Play / pause (space)" aria-label="Play">
+          <svg viewBox="0 0 24 24" class="i-play"><path d="M7 4.5v15l13-7.5z" /></svg>
+          <svg viewBox="0 0 24 24" class="i-pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z" /></svg>
+        </button>
+        <div class="year" id="year">—</div>
+        <div class="track">
+          <input type="range" id="slider" min="0" max="0" value="0" aria-label="Year" />
+          <div class="ticks mono" id="ticks"></div>
+        </div>
+        <div class="view-tabs speed" id="speed">
+          <button data-fps="3">½×</button><button data-fps="6" class="is-active">1×</button><button data-fps="14">2×</button>
+        </div>
+      </footer>
+
+      <aside class="legend glass" id="legend">
+        <button class="ramp" id="ramp" title="Change colormap"></button>
+        <div class="scale mono">
+          <input id="vmin" inputmode="decimal" aria-label="Minimum" />
+          <span id="units"></span>
+          <input id="vmax" inputmode="decimal" aria-label="Maximum" />
+        </div>
+        <div class="legend-actions">
+          <button class="chip" id="auto" title="Reset to the 2nd–98th percentile">p2–p98</button>
+          <button class="chip" id="rev" title="Reverse colormap">reverse</button>
+          <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.95" title="Opacity" aria-label="Opacity" />
+        </div>
+        <div class="cmap-grid" id="cmap-grid" hidden></div>
+      </aside>
+
+      <aside class="inspector glass" id="inspector" hidden>
+        <div class="ins-head">
+          <span class="mono" id="ins-coord"></span>
+          <button class="x" id="ins-close" aria-label="Close">×</button>
+        </div>
+        <div class="ins-value"><span id="ins-now"></span><span class="mono" id="ins-units"></span></div>
+        <div class="ins-trend mono" id="ins-trend"></div>
+        <div class="ins-chart" id="ins-chart"></div>
+        <div class="ins-axis mono"><span id="ins-y0"></span><span id="ins-y1"></span></div>
+      </aside>
+
+      <div class="readout mono" id="readout" hidden></div>
+      <div class="boot" id="boot"><span class="led busy"></span><span id="boot-msg">Loading catalog</span></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

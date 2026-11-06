@@ -1,0 +1,31 @@
+{
+  "name": "worldtensor-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deck.gl/core": "^9.4.1",
+    "@deck.gl/geo-layers": "^9.4.1",
+    "@deck.gl/layers": "^9.4.1",
+    "@deck.gl/mapbox": "^9.4.1",
+    "@deck.gl/mesh-layers": "^9.4.1",
+    "@developmentseed/deck.gl-raster": "0.10.0-beta.4",
+    "@developmentseed/deck.gl-zarr": "0.10.0-beta.4",
+    "@luma.gl/core": "^9.4.2",
+    "@luma.gl/shadertools": "^9.4.2",
+    "@types/node": "^26.6.6",
+    "@zarrita/storage": "^0.2.0",
+    "maplibre-gl": "^5.24.0",
+    "zarrita": "^0.7.5",
+    "@developmentseed/morecantile": "0.10.0-beta.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6"
+  }
+}

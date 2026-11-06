@@ -43,6 +43,28 @@ Tuned for a static browser app reading over HTTPS range requests
   `zarr.json` from it plus `array_template`, so it makes no metadata requests.
 - Grid: EPSG:4326 cell centers, lat ascending (-90..90), lon 0..359.75.
 
+## Viewer (`web/`)
+
+Static Vite + TypeScript app: MapLibre globe + deck.gl `ZarrLayer`
+([deck.gl-raster](https://github.com/developmentseed/deck.gl-raster)) reading the
+store straight over HTTP range requests — no tile server.
+
+```bash
+cd web && npm install
+WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor_v2.zarr npm run dev   # serves the store at /data
+VITE_DATA_URL=https://data.source.coop/taylor-geospatial/<repo>/worldtensor.zarr npm run build
+```
+
+- Two layers per variable: an *overview* on the 8x/16x levels (every year in one
+  Texture2DArray, so play/scrub is a uniform change with zero requests) and a
+  *detail* layer on base/2x that fetches only the shown year once it settles.
+- `ViewerStore` answers every pyramid `zarr.json` from `catalog.json` (zero
+  metadata round trips), dedupes in-flight requests and LRU-caches chunk bytes.
+- Hover = exact pixel point query against cached chunks; click = full time
+  series from the sharded `ts` array, with a per-decade OLS trend.
+- The grid is stored south-up (lat ascending), which mirrors mesh winding on the
+  globe; layers cull *front* faces (see `layers.ts`).
+
 ## Status
 
 Conversion pipeline running. Next: local viz webapp, then rehost the zarr store
