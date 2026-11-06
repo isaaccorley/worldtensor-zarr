@@ -107,8 +107,13 @@ def set_geotransform(group, geotransform):
 def link_crs(array):
     """CF `coordinates` link so xarray decodes spatial_ref as a coordinate of
     the data variable; without it `ds[var].rio.crs` is None even though
-    `grid_mapping` is set (the grid-mapping var stays a separate data var)."""
-    array.attrs["coordinates"] = "spatial_ref"
+    `grid_mapping` is set (the grid-mapping var stays a separate data var).
+    Also drops GDAL STATISTICS_* attrs inherited from single-year source
+    GeoTIFFs: they describe one year, not the stack (e.g. MEAN = -9999)."""
+    attrs = {k: v for k, v in array.attrs.items() if not k.startswith("STATISTICS_")}
+    attrs["coordinates"] = "spatial_ref"
+    if attrs != dict(array.attrs):
+        array.attrs.put(attrs)
 
 
 def factor_of(level):
@@ -125,7 +130,8 @@ def open_fresh(path):
 
 def patch_variable(grid, group_path):
     g = open_fresh(group_path)
-    (var,) = [k for k, a in g.arrays() if k not in {"lat", "lon", "time", "spatial_ref"}]
+    # the data array is the one gridded on (lat, lon)
+    (var,) = [k for k, a in g.arrays() if tuple(a.metadata.dimension_names or ())[-2:] == ("lat", "lon")]
     # discover levels from child groups ("2x", "4x", ...) so this is
     # idempotent and independent of whatever multiscales attr exists
     subs = sorted((k for k, _ in g.groups() if k.endswith("x") and k[:-1].isdigit()), key=factor_of)

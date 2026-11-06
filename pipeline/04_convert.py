@@ -78,10 +78,11 @@ def load_unit(unit):
         # normalize to no time dim before stamping our own time coordinate
         if "time" in da.dims:
             da = da.isel(time=0, drop=True)
-        # a placeholder grid-mapping var can ride along as a non-dimension
-        # coord (via a "coordinates" attr) on some years' files but not
-        # others - drop it so concat doesn't choke on the mismatch
-        stray = [c for c in da.coords if c in PLACEHOLDER_VARS]
+        # drop every non-dimension coord: placeholder grid-mapping vars ride
+        # along on some years' files but not others (breaks concat), and
+        # GeoTIFF-derived files carry a scalar `band=1` that would otherwise
+        # concat into a meaningless per-year `band` coordinate
+        stray = [c for c in da.coords if c not in da.dims]
         if stray:
             da = da.reset_coords(stray, drop=True)
         arrays.append(da.expand_dims(time=[pd.Timestamp(f"{year}-01-01")]))
