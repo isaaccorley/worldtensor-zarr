@@ -61,7 +61,7 @@ def main():
     (varname,) = [v for v in root.data_vars if v != "spatial_ref"]
     method = resampling_method(varname, root[varname].dtype)
 
-    levels = [("0", group_path, root[varname])]
+    levels = [(".", group_path, root[varname])]
     factor = 2
     current = root[varname]
     while min(current.sizes["lat"], current.sizes["lon"]) > MIN_DIM:
