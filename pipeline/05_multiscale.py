@@ -45,10 +45,10 @@ def coarsen_once(da: xr.DataArray, method: str) -> xr.DataArray:
     coarsen_dims = {"lat": 2, "lon": 2}
     c = da.coarsen(boundary="pad", **coarsen_dims)
     if method == "sum":
-        return c.sum(skipna=True)
+        return c.sum()
     if method == "mode":
         return c.reduce(mode_reduce)
-    return c.mean(skipna=True)
+    return c.mean()
 
 
 def main():
@@ -57,7 +57,7 @@ def main():
         unit = json.loads(fh.readlines()[idx])
 
     group_path = unit["group_path"]
-    root = xr.open_zarr(STORE, group=group_path)
+    root = xr.open_zarr(STORE, group=group_path, consolidated=False)
     (varname,) = [v for v in root.data_vars if v != "spatial_ref"]
     method = resampling_method(varname, root[varname].dtype)
 

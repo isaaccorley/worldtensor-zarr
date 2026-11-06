@@ -98,6 +98,11 @@ def main():
     n_lon = ds.sizes["lon"]
     time_chunk, lat_chunk, lon_chunk = pick_chunks(n_time, n_lat, n_lon)
 
+    # explicit codec (not the zarr default) - zstd decodes fast in-browser via
+    # zarrita.js/numcodecs-wasm, which matters once this is read over HTTPS
+    # range requests by a deck.gl viewer instead of read locally with dask
+    from zarr.codecs import BytesCodec, ZstdCodec
+
     encoding = {}
     for v in ds.data_vars:
         if v == "spatial_ref":
@@ -106,7 +111,12 @@ def main():
             chunks = (time_chunk, lat_chunk, lon_chunk)
         else:
             chunks = (lat_chunk, lon_chunk)
-        encoding[v] = {"chunks": chunks, "_FillValue": np.float32(np.nan)}
+        encoding[v] = {
+            "chunks": chunks,
+            "_FillValue": np.float32(np.nan),
+            "serializer": BytesCodec(),
+            "compressors": [ZstdCodec(level=5)],
+        }
 
     ds.to_zarr(
         STORE,
