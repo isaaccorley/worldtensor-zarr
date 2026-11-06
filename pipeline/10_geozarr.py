@@ -63,7 +63,7 @@ ROOT_ATTRS = {
     "source": "https://zenodo.org/records/19047618",
     "references": "https://arxiv.org/abs/2607.03298",
     "history": "Converted from the WorldTensor NetCDF release with "
-    "https://github.com/isaaccorley/worldtensor-zarr",
+    "https://github.com/isaaccorley/worldtensor-geozarr",
 }
 
 
