@@ -2,8 +2,8 @@
 #SBATCH --job-name=wt-pyramid
 #SBATCH --partition=cpu_amd
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=8G
-#SBATCH --time=02:00:00
+#SBATCH --mem=4G
+#SBATCH --time=00:30:00
 #SBATCH --output=/projects/bjey/worldtensor/logs/pyramid_%a.out
 #SBATCH --error=/projects/bjey/worldtensor/logs/pyramid_%a.err
 

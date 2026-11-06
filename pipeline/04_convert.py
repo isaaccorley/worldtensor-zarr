@@ -5,13 +5,15 @@ GeoZarr group inside the central worldtensor.zarr store.
 Usage: 04_convert.py <manifest.jsonl> <line_index>
 """
 import json
+import os
 import sys
 
 import numpy as np
 import pandas as pd
 import xarray as xr
+from zarr.codecs import BloscCodec, BloscShuffle, BytesCodec
 
-STORE = "/projects/bjey/worldtensor/zarr/worldtensor.zarr"
+STORE = os.environ.get("WT_STORE", "/projects/bjey/worldtensor/zarr/worldtensor.zarr")
 
 # some source files carry an incidental dummy grid-mapping var we don't want
 # picked up as "the" data variable
@@ -38,10 +40,22 @@ def grid_mapping_var():
 
 
 def pick_chunks(n_time, n_lat, n_lon):
+    # one year per chunk (viewer draws one year at a time), split 2x4 spatially
+    # (hemisphere x 90deg lon): base res is only read when zoomed in, so a
+    # regional view fetches ~1/8-1/2 of the globe; tiling costs ~0-3% in
+    # compressed size and HTTP/2 fetches the tiles in parallel. whole-globe
+    # views read the single-chunk 2x level instead.
     lat_chunk = min(n_lat, 361)
-    lon_chunk = min(n_lon, 480)
-    time_chunk = min(n_time, 8) if n_time else None
-    return time_chunk, lat_chunk, lon_chunk
+    lon_chunk = min(n_lon, 360)
+    if n_time:
+        return (1, lat_chunk, lon_chunk)
+    return (lat_chunk, lon_chunk)
+
+
+def compressor():
+    # lossless; byte shuffle + zstd9 benchmarked best on these float32 fields
+    # (1.2-1.7x smaller than plain zstd5, same decode speed)
+    return BloscCodec(cname="zstd", clevel=9, shuffle=BloscShuffle.shuffle, typesize=4)
 
 
 def load_unit(unit):
@@ -99,29 +113,16 @@ def main():
     ds["lat"].attrs.update(standard_name="latitude", units="degrees_north", axis="Y")
     ds["lon"].attrs.update(standard_name="longitude", units="degrees_east", axis="X")
 
-    n_time = ds.sizes.get("time", 0)
-    n_lat = ds.sizes["lat"]
-    n_lon = ds.sizes["lon"]
-    time_chunk, lat_chunk, lon_chunk = pick_chunks(n_time, n_lat, n_lon)
-
-    # explicit codec (not the zarr default) - zstd decodes fast in-browser via
-    # zarrita.js/numcodecs-wasm, which matters once this is read over HTTPS
-    # range requests by a deck.gl viewer instead of read locally with dask
-    from zarr.codecs import BytesCodec, ZstdCodec
-
+    chunks = pick_chunks(ds.sizes.get("time", 0), ds.sizes["lat"], ds.sizes["lon"])
     encoding = {}
     for v in ds.data_vars:
         if v == "spatial_ref":
             continue
-        if n_time:
-            chunks = (time_chunk, lat_chunk, lon_chunk)
-        else:
-            chunks = (lat_chunk, lon_chunk)
         encoding[v] = {
             "chunks": chunks,
             "_FillValue": np.float32(np.nan),
             "serializer": BytesCodec(),
-            "compressors": [ZstdCodec(level=5)],
+            "compressors": [compressor()],
         }
 
     ds.to_zarr(

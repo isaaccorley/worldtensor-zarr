@@ -2,8 +2,8 @@
 #SBATCH --job-name=wt-convert
 #SBATCH --partition=cpu_amd
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=6G
-#SBATCH --time=02:00:00
+#SBATCH --mem=3G
+#SBATCH --time=00:30:00
 #SBATCH --output=/projects/bjey/worldtensor/logs/convert_%a.out
 #SBATCH --error=/projects/bjey/worldtensor/logs/convert_%a.err
 
