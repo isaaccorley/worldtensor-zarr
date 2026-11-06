@@ -3,9 +3,15 @@
 central worldtensor.zarr store.
 
 Resampling is chosen from the variable's semantics:
-  - name ends with "_sum"      -> sum pooling
-  - integer dtype / "class" in name -> mode (categorical)
-  - otherwise                  -> average (continuous / mean / fraction)
+  - name ends with "_sum" -> sum pooling
+  - integer dtype         -> mode (categorical)
+  - otherwise             -> average (continuous / mean / fraction)
+
+Survey of the source NetCDFs found every variable on disk is float32, nodata as
+NaN, no scale/offset, and no true categorical class-id raster (e.g.
+"vegetation_class" is actually 18 separate float32 fractional presence masks,
+one per class, not a single integer label array) - so name-sniffing for
+"class" is deliberately NOT used here, only dtype.
 
 Usage: 05_multiscale.py <manifest.jsonl> <line_index>
 """
@@ -25,7 +31,7 @@ def resampling_method(varname: str, dtype) -> str:
     name = varname.lower()
     if name.endswith("_sum"):
         return "sum"
-    if "class" in name or np.issubdtype(dtype, np.integer):
+    if np.issubdtype(dtype, np.integer):
         return "mode"
     return "average"
 

@@ -13,6 +13,10 @@ import xarray as xr
 
 STORE = "/projects/bjey/worldtensor/zarr/worldtensor.zarr"
 
+# some source files carry an incidental dummy grid-mapping var we don't want
+# picked up as "the" data variable
+PLACEHOLDER_VARS = {"spatial_ref", "crs"}
+
 CRS_WKT = (
     'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],'
     'PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],'
@@ -46,7 +50,7 @@ def load_unit(unit):
 
     if kind == "static":
         ds = xr.open_dataset(files[0])
-        (varname,) = [v for v in ds.data_vars]
+        (varname,) = [v for v in ds.data_vars if v not in PLACEHOLDER_VARS]
         da = ds[varname]
         da = da.rename(varname.replace("/", "_"))
         return da, None
@@ -54,7 +58,7 @@ def load_unit(unit):
     arrays = []
     for f, year in zip(files, unit["years"]):
         ds = xr.open_dataset(f)
-        (varname,) = [v for v in ds.data_vars]
+        (varname,) = [v for v in ds.data_vars if v not in PLACEHOLDER_VARS]
         da = ds[varname]
         # some source files already carry a size-1 "time" dim, others don't -
         # normalize to no time dim before stamping our own time coordinate
