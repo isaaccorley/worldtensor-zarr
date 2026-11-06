@@ -5,20 +5,40 @@ import maplibregl from "maplibre-gl";
 const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
 const LABELS = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-/** Warm the carto dark basemap toward the espresso palette. */
-function warmBasemap(map: maplibregl.Map) {
+/** Cool, neutral basemap: near-black water, charcoal land, hairline borders. */
+function styleBasemap(map: maplibregl.Map) {
   for (const layer of map.getStyle().layers) {
-    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#17120e");
+    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#1a1e23");
     if (layer.type === "fill" && /water/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "fill-color", "#0f0c09");
+      map.setPaintProperty(layer.id, "fill-color", "#0c0f13");
     }
     if (layer.type === "fill" && /land(cover|use)|park|building/.test(layer.id)) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
     if (layer.type === "line" && /boundary|admin/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "line-color", "rgba(243,236,216,0.35)");
+      map.setPaintProperty(layer.id, "line-color", "rgba(255,255,255,0.42)");
     }
   }
+}
+
+/** 15-degree graticule as GeoJSON lines (drawn above the raster, very faint). */
+function graticule(): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (let lon = -180; lon <= 180; lon += 15) {
+    const coords: [number, number][] = [];
+    for (let lat = -90; lat <= 90; lat += 2) coords.push([lon, lat]);
+    features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } });
+  }
+  for (let lat = -75; lat <= 75; lat += 15) {
+    const coords: [number, number][] = [];
+    for (let lon = -180; lon <= 180; lon += 2) coords.push([lon, lat]);
+    features.push({
+      type: "Feature",
+      properties: { equator: lat === 0 },
+      geometry: { type: "LineString", coordinates: coords },
+    });
+  }
+  return { type: "FeatureCollection", features };
 }
 
 export type MapHandles = {
@@ -52,7 +72,14 @@ export function createMap(
   return new Promise((resolve) => {
     map.once("style.load", async () => {
       map.setProjection({ type: "globe" });
-      warmBasemap(map);
+      styleBasemap(map);
+      // atmosphere halo around the globe, fading out as you zoom in
+      map.setSky({
+        "sky-color": "#07090c",
+        "horizon-color": "#1b3a5c",
+        "fog-color": "#0c1118",
+        "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
+      });
       // pull label layers from the full style and stack them above the raster
       let beforeId: string | undefined;
       try {
@@ -65,14 +92,25 @@ export function createMap(
           if (layer.type !== "symbol" || !/place|country|continent/.test(layer.id)) continue;
           if (map.getLayer(layer.id)) continue;
           map.addLayer(layer);
-          map.setPaintProperty(layer.id, "text-color", "rgba(243,236,216,0.82)");
-          map.setPaintProperty(layer.id, "text-halo-color", "rgba(14,11,8,0.75)");
-          map.setPaintProperty(layer.id, "text-halo-width", 1.2);
+          map.setPaintProperty(layer.id, "text-color", "rgba(227,230,234,0.78)");
+          map.setPaintProperty(layer.id, "text-halo-color", "rgba(7,9,12,0.7)");
+          map.setPaintProperty(layer.id, "text-halo-width", 1);
           beforeId ??= layer.id;
         }
       } catch {
         // labels are decoration; render without them
       }
+      map.addSource("graticule", { type: "geojson", data: graticule() });
+      map.addLayer({
+        id: "graticule",
+        type: "line",
+        source: "graticule",
+        paint: {
+          "line-color": "#ffffff",
+          "line-opacity": ["case", ["==", ["get", "equator"], true], 0.38, 0.2],
+          "line-width": 0.7,
+        },
+      });
       // country borders sit above the raster; carto puts county/state
       // boundaries *below* water, so anchor on the country outline explicitly
       const anchor = map.getLayer("boundary_country_outline") ? "boundary_country_outline" : beforeId;

@@ -6,14 +6,15 @@ export type ColormapName = keyof typeof COLORMAP_INDEX;
 
 /** Curated picker order: perceptually uniform first, then diverging. */
 export const PICKER: ColormapName[] = [
-  "thermal", "viridis", "magma", "inferno", "cividis", "turbo",
+  "turbo", "viridis", "magma", "inferno", "rdylbu", "spectral",
+  "thermal", "cividis", "ylgnbu",
   "haline", "deep", "ice", "dense", "tempo", "algae",
   "speed", "matter", "amp", "solar", "gist_earth", "terrain",
   "balance", "rdbu", "coolwarm", "curl", "brbg", "piyg",
 ];
 
 const DOMAIN_DEFAULT: Record<string, ColormapName> = {
-  climate: "thermal",
+  climate: "viridis",
   ocean: "haline",
   vegetation: "algae",
   agriculture: "speed",
@@ -32,9 +33,12 @@ const DOMAIN_DEFAULT: Record<string, ColormapName> = {
 export function defaultColormap(v: Variable): { name: ColormapName; reversed: boolean } {
   const n = v.name.toLowerCase();
   if (/^(tp|cp|lsp|e|ro|sro|ssro|sf|csf|lsf)_|precip|runoff|rain/.test(n)) {
-    return { name: "dense", reversed: false };
+    return { name: "ylgnbu", reversed: false };
   }
-  if (/(^t2m|^d2m|^skt|^sst|^stl|temp)/.test(n)) return { name: "thermal", reversed: false };
+  // Turbo (Google AI's improved rainbow) for absolute temperature: a diverging
+  // map centred mid-range paints most of the planet in its warm half
+  if (/(^t2m|^d2m|^skt|^sst|^stl|temp)/.test(n)) return { name: "turbo", reversed: false };
+  if (/wind|^u10|^v10|^si10|fg_/.test(n)) return { name: "viridis", reversed: false };
   if (/_std$/.test(n)) return { name: "magma", reversed: false };
   return { name: DOMAIN_DEFAULT[v.domain] ?? "viridis", reversed: false };
 }

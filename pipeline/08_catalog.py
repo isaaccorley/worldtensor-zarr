@@ -28,6 +28,13 @@ def compact_years(years):
     return ys
 
 
+def weighted_percentile(values, weights, qs):
+    order = np.argsort(values)
+    v, cw = values[order], np.cumsum(weights[order])
+    cw /= cw[-1]
+    return np.interp(np.asarray(qs) / 100, cw, v)
+
+
 def array_meta(store, path, name):
     with open(os.path.join(store, path, name, "zarr.json")) as fh:
         meta = json.load(fh)
@@ -63,9 +70,14 @@ def main():
         stat_lvl = "4x" if "4x" in arrays else level_paths[-1]
         sds = ds if stat_lvl == "." else xr.open_zarr(STORE, group=f"{g}/{stat_lvl}", consolidated=False)
         vals = sds[v].values
-        finite = vals[np.isfinite(vals)]
+        # weight by cell area (cos lat): on an equal-angle grid the tiny polar
+        # cells are heavily over-counted, which drags e.g. t2m's p2 to 226 K
+        w = np.broadcast_to(np.cos(np.deg2rad(sds["lat"].values))[:, None], vals.shape[-2:])
+        w = np.broadcast_to(w, vals.shape)
+        ok = np.isfinite(vals)
+        finite, wts = vals[ok], w[ok]
         if finite.size:
-            p2, p98 = (float(x) for x in np.percentile(finite, [2, 98]))
+            p2, p98 = (float(x) for x in weighted_percentile(finite, wts, [2, 98]))
             vmin, vmax = float(finite.min()), float(finite.max())
         else:
             p2 = p98 = vmin = vmax = None

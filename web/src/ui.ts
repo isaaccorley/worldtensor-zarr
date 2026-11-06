@@ -53,9 +53,9 @@ export function renderList(s: State) {
     list.innerHTML = shown
       .map(
         (v, i) => `<li class="var" data-path="${v.path}" style="--i:${Math.min(i, 24)}">
-          <span class="var-name mono">${v.path.split("/").slice(1).join("/")}</span>
+          <span class="var-name">${v.path.split("/").slice(1).join("/")}</span>
           <span class="var-label">${labelOf(v)}</span>
-          <span class="var-meta mono">${DOMAIN_LABELS[v.domain] ?? v.domain}${v.units ? ` · ${v.units}` : ""}${
+          <span class="var-meta">${DOMAIN_LABELS[v.domain] ?? v.domain}${v.units ? ` · ${v.units}` : ""}${
             v.years ? "" : " · static"
           }</span>
         </li>`,
@@ -71,6 +71,7 @@ export function renderList(s: State) {
 
 export function renderTimeline(s: State) {
   const v = s.variable;
+  $("var-domain").textContent = DOMAIN_LABELS[v.domain] ?? v.domain;
   $("var-title").textContent = labelOf(v);
   $("var-sub").textContent = `${v.path}${v.units ? `  ·  ${v.units}` : ""}`;
   const temporal = s.years.length > 1;
@@ -101,6 +102,11 @@ export function renderLegend(s: State) {
   if (document.activeElement !== vmax) vmax.value = fmt(s.vmax);
   $("units").textContent = s.variable.units ?? "";
   $("rev").classList.toggle("is-active", s.reversed);
+  // colorbar ticks: 5 evenly spaced values across the rescale range
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  $("cbar-ticks").innerHTML = ticks
+    .map((t) => `<span style="left:${t * 100}%">${fmt(s.vmin + t * (s.vmax - s.vmin))}</span>`)
+    .join("");
   const grid = $("cmap-grid");
   if (!grid.dataset.ready) {
     grid.dataset.ready = "1";
@@ -185,7 +191,9 @@ export function bindUi(s: State, a: Actions) {
   });
 
   const grid = $("cmap-grid");
-  $("ramp").addEventListener("click", () => (grid.hidden = !grid.hidden));
+  const toggleGrid = () => (grid.hidden = !grid.hidden);
+  $("ramp").addEventListener("click", toggleGrid);
+  $("ramp-btn").addEventListener("click", toggleGrid);
   grid.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-cmap]");
     if (!b) return;
