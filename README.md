@@ -67,6 +67,6 @@ VITE_DATA_URL=https://data.source.coop/taylor-geospatial/<repo>/worldtensor.zarr
 
 ## Status
 
-Conversion pipeline running. Next: local viz webapp, then rehost the zarr store
-to Source Cooperative (`taylor-geospatial` org) and switch the webapp to HTTPS
-range requests against it.
+v2 store built (`worldtensor_v2.zarr`, 97 GB, lossless). Viewer runs locally
+against it. Next: rehost to Source Cooperative (`taylor-geospatial`) and point
+`VITE_DATA_URL` at it.
