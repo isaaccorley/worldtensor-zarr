@@ -56,6 +56,10 @@ def load_unit(unit):
         ds = xr.open_dataset(f)
         (varname,) = [v for v in ds.data_vars]
         da = ds[varname]
+        # some source files already carry a size-1 "time" dim, others don't -
+        # normalize to no time dim before stamping our own time coordinate
+        if "time" in da.dims:
+            da = da.isel(time=0, drop=True)
         arrays.append(da.expand_dims(time=[pd.Timestamp(f"{year}-01-01")]))
     da = xr.concat(arrays, dim="time")
     da = da.rename(varname.replace("/", "_"))
