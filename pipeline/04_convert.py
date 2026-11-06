@@ -64,6 +64,12 @@ def load_unit(unit):
         # normalize to no time dim before stamping our own time coordinate
         if "time" in da.dims:
             da = da.isel(time=0, drop=True)
+        # a placeholder grid-mapping var can ride along as a non-dimension
+        # coord (via a "coordinates" attr) on some years' files but not
+        # others - drop it so concat doesn't choke on the mismatch
+        stray = [c for c in da.coords if c in PLACEHOLDER_VARS]
+        if stray:
+            da = da.reset_coords(stray, drop=True)
         arrays.append(da.expand_dims(time=[pd.Timestamp(f"{year}-01-01")]))
     da = xr.concat(arrays, dim="time")
     da = da.rename(varname.replace("/", "_"))
