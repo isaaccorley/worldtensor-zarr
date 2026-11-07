@@ -58,7 +58,7 @@ export function createMap(
     style: STYLE,
     center: view.center,
     zoom: view.zoom,
-    attributionControl: { compact: true },
+    attributionControl: new URLSearchParams(location.search).has("clean") ? false : { compact: true },
     maxPitch: 0,
   });
   const overlay = new MapboxOverlay({
@@ -81,8 +81,10 @@ export function createMap(
         "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
       });
       // pull label layers from the full style and stack them above the raster
+      // (`?clean` skips them: used to render the social preview image)
       let beforeId: string | undefined;
       try {
+        if (new URLSearchParams(location.search).has("clean")) throw new Error("clean");
         const labels = await (await fetch(LABELS)).json();
         for (const [id, src] of Object.entries(labels.sources)) {
           if (!map.getSource(id)) map.addSource(id, src as maplibregl.SourceSpecification);

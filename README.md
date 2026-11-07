@@ -35,14 +35,15 @@ Every group follows CF-1.8: a `spatial_ref` grid mapping with WKT and a GDAL `Ge
 ## Viewer
 
 <p>
-  <img src="docs/assets/playback.gif" width="43%" alt="Animating 2-metre temperature, 1940–2025">
-  <img src="docs/assets/soil.png" width="55%" alt="Soil bulk density over the Americas">
+  <img src="docs/assets/playback.gif" width="43%" alt="Animating 2-meter temperature, 1940–2025">
+  <img src="docs/assets/soil.png" width="55%" alt="Clay content at 15–30 cm over South America, with the depth facet selected">
 </p>
 
 The viewer uses Bun, Vite, TypeScript, a MapLibre globe and deck.gl-raster's [`ZarrLayer`](https://github.com/developmentseed/deck.gl-raster).
 
 - **Time playback:** each variable draws two layers. The 8× overview holds every year in one GPU texture, so playing or scrubbing through time makes no network requests. Once you pause, a full-resolution layer fetches the year you're on.
 - **No metadata requests:** array metadata comes from `catalog.json`, and chunk bytes are deduplicated and cached in memory.
+- **Finding variables:** the 757 variables collapse into 349 families. Statistic (mean/min/max/std), soil depth and land-use from→to pairs are switches on the selected variable instead of separate list entries. The left panel is a domain → family tree, and **⌘K** (or **/**) searches everything.
 - **Hover** reads the exact pixel value. **Clicking** reads that pixel's whole history from the sharded `ts` array and plots it with a trend per decade.
 
 ```bash
