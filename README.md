@@ -4,7 +4,7 @@
 
 **[Open the viewer →](https://research.taylorgeospatial.org/worldtensor-geozarr/)** · Data: `https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr` · [Paper](https://arxiv.org/abs/2607.03298) · [Original release (Zenodo)](https://zenodo.org/records/19047618)
 
-![WorldTensor viewer: 2-metre temperature with a pixel time series](docs/assets/hero.png)
+![WorldTensor viewer: 2-meter temperature with a pixel time series](docs/assets/hero.png)
 
 This repo converts the [WorldTensor](https://arxiv.org/abs/2607.03298) NetCDF release into a single GeoZarr store on [Source Cooperative](https://source.coop) and serves a static viewer for it. There is no tile server: the browser reads Zarr chunks over HTTP range requests.
 

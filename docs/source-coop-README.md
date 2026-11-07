@@ -4,7 +4,7 @@
 
 **[Explore it in the browser →](https://research.taylorgeospatial.org/worldtensor-geozarr/)** · [Code and pipeline](https://github.com/taylor-geospatial/worldtensor-geozarr) · [Paper](https://arxiv.org/abs/2607.03298) · [Original release (Zenodo)](https://zenodo.org/records/19047618)
 
-![WorldTensor viewer: 2-metre temperature with a pixel time series](https://raw.githubusercontent.com/taylor-geospatial/worldtensor-geozarr/main/docs/assets/hero.png)
+![WorldTensor viewer: 2-meter temperature with a pixel time series](https://raw.githubusercontent.com/taylor-geospatial/worldtensor-geozarr/main/docs/assets/hero.png)
 
 ## Access
 
