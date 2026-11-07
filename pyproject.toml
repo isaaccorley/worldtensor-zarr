@@ -1,0 +1,36 @@
+[project]
+name = "worldtensor-geozarr"
+version = "0.0.0"
+description = "WorldTensor NetCDF to GeoZarr conversion pipeline (SLURM scripts, not a package)"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "jsonschema",
+    "ruff",
+    "rioxarray",
+    "ty",
+    # resolved only so ty can type-check pipeline/*.py; on the cluster the
+    # sbatch files install what they need with `uv run --with ...`
+    "netCDF4",
+    "numpy",
+    "pandas",
+    "xarray",
+    "zarr",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["web", "bench", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true

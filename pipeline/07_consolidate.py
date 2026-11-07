@@ -6,6 +6,7 @@ would have to download before drawing anything. Per-group consolidation keeps
 each variable's pyramid openable in one request (~tens of KB) for xarray users,
 while the web viewer gets its metadata from catalog.json (08_catalog.py).
 """
+
 import json
 import os
 
@@ -15,7 +16,7 @@ STORE = os.environ.get("WT_STORE", "/projects/bjey/worldtensor/zarr/worldtensor.
 MANIFEST = os.environ.get("WT_MANIFEST", "/projects/bjey/worldtensor/scripts/variables_manifest.jsonl")
 
 
-def main():
+def main() -> None:
     with open(MANIFEST) as fh:
         groups = [json.loads(line)["group_path"] for line in fh]
     for g in groups:

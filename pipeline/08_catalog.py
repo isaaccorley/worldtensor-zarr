@@ -8,6 +8,7 @@ shape and chunk/shard shape. Codec, dtype and fill are uniform across the store
 and recorded once in "array_template"; the client synthesizes each array's
 zarr.json from template + shape/chunks.
 """
+
 import json
 import os
 
@@ -18,7 +19,7 @@ STORE = os.environ.get("WT_STORE", "/projects/bjey/worldtensor/zarr/worldtensor.
 MANIFEST = os.environ.get("WT_MANIFEST", "/projects/bjey/worldtensor/scripts/variables_manifest.jsonl")
 
 
-def compact_years(years):
+def compact_years(years: list[str] | None) -> dict[str, int] | list[int] | None:
     """{"start","end"} for a contiguous run, else the explicit list."""
     if not years:
         return None
@@ -28,14 +29,14 @@ def compact_years(years):
     return ys
 
 
-def weighted_percentile(values, weights, qs):
+def weighted_percentile(values: np.ndarray, weights: np.ndarray, qs: list[float]) -> np.ndarray:
     order = np.argsort(values)
     v, cw = values[order], np.cumsum(weights[order])
     cw /= cw[-1]
     return np.interp(np.asarray(qs) / 100, cw, v)
 
 
-def array_meta(store, path, name):
+def array_meta(store: str, path: str, name: str) -> tuple[dict, dict]:
     with open(os.path.join(store, path, name, "zarr.json")) as fh:
         meta = json.load(fh)
     out = {"shape": meta["shape"]}
@@ -48,7 +49,7 @@ def array_meta(store, path, name):
     return out, meta
 
 
-def main():
+def main() -> None:
     with open(MANIFEST) as fh:
         units = [json.loads(line) for line in fh]
 
@@ -58,8 +59,10 @@ def main():
         g = unit["group_path"]
         ds = xr.open_zarr(STORE, group=g, consolidated=False)
         (v,) = [k for k in ds.data_vars if k != "spatial_ref"]
-        ms = ds.attrs["multiscales"]  # zarr-conventions v0.1 layout (10_geozarr.py)
-        level_paths = ["." if "/" not in item["asset"] else item["asset"].split("/")[0] for item in ms["layout"]]
+        ms = ds.attrs["multiscales"]  # zarr-conventions v0.1 layout (06_geozarr.py)
+        level_paths = [
+            "." if "/" not in item["asset"] else item["asset"].split("/")[0] for item in ms["layout"]
+        ]
         arrays = {}
         for lvl in level_paths + (["ts"] if "time" in ds[v].dims else []):
             sub = g if lvl == "." else f"{g}/{lvl}"
@@ -82,31 +85,36 @@ def main():
         else:
             p2 = p98 = vmin = vmax = None
         a = ds[v].attrs
-        variables.append({
-            "path": g,
-            "name": v,
-            "domain": unit["domain"],
-            "units": a.get("units"),
-            "long_name": a.get("long_name"),
-            "years": compact_years(unit.get("years")),
-            "resampling": ms.get("resampling_method", "average"),
-            "range": {"p2": p2, "p98": p98, "min": vmin, "max": vmax},
-            "arrays": arrays,
-        })
+        variables.append(
+            {
+                "path": g,
+                "name": v,
+                "domain": unit["domain"],
+                "units": a.get("units"),
+                "long_name": a.get("long_name"),
+                "years": compact_years(unit.get("years")),
+                "resampling": ms.get("resampling_method", "average"),
+                "range": {"p2": p2, "p98": p98, "min": vmin, "max": vmax},
+                "arrays": arrays,
+            }
+        )
         print(g, flush=True)
 
-    lat = xr.open_zarr(STORE, group=units[0]["group_path"], consolidated=False).lat.values
-    lon = xr.open_zarr(STORE, group=units[0]["group_path"], consolidated=False).lon.values
+    first = xr.open_zarr(STORE, group=units[0]["group_path"], consolidated=False)
+    lat, lon = first.lat.values, first.lon.values
     catalog = {
         "version": 1,
         "grid": {
             "crs": "EPSG:4326",
             "shape": [int(lat.size), int(lon.size)],
-            "lat_first": float(lat[0]), "lat_last": float(lat[-1]),
-            "lon_first": float(lon[0]), "lon_last": float(lon[-1]),
+            "lat_first": float(lat[0]),
+            "lat_last": float(lat[-1]),
+            "lon_first": float(lon[0]),
+            "lon_last": float(lon[-1]),
             "resolution": float(lon[1] - lon[0]),
             "lat_order": "ascending" if lat[1] > lat[0] else "descending",
-            "note": "cell centers; lon in [0, 360); pyramid level k halves both dims (odd trailing row trimmed)",
+            "note": "cell centers; lon in [0, 360); "
+            "pyramid level k halves both dims (odd trailing row trimmed)",
         },
         "array_template": template,
         "variables": variables,
@@ -114,7 +122,7 @@ def main():
     out = os.path.join(STORE, "catalog.json")
     with open(out, "w") as fh:
         json.dump(catalog, fh, separators=(",", ":"))
-    print(f"wrote {out}: {len(variables)} variables, {os.path.getsize(out)/1e3:.0f} KB")
+    print(f"wrote {out}: {len(variables)} variables, {os.path.getsize(out) / 1e3:.0f} KB")
 
 
 if __name__ == "__main__":

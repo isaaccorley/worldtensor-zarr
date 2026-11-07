@@ -4,6 +4,7 @@ GeoZarr group inside the central worldtensor.zarr store.
 
 Usage: 04_convert.py <manifest.jsonl> <line_index>
 """
+
 import json
 import os
 import sys
@@ -11,7 +12,7 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from zarr.codecs import BloscCodec, BloscShuffle, BytesCodec
+from zarr.codecs import BloscCodec, BytesCodec
 
 STORE = os.environ.get("WT_STORE", "/projects/bjey/worldtensor/zarr/worldtensor.zarr")
 
@@ -26,7 +27,7 @@ CRS_WKT = (
 )
 
 
-def grid_mapping_var():
+def grid_mapping_var() -> xr.DataArray:
     da = xr.DataArray(0, name="spatial_ref")
     da.attrs = {
         "grid_mapping_name": "latitude_longitude",
@@ -39,7 +40,7 @@ def grid_mapping_var():
     return da
 
 
-def pick_chunks(n_time, n_lat, n_lon):
+def pick_chunks(n_time: int, n_lat: int, n_lon: int) -> tuple[int, ...]:
     # one year per chunk (viewer draws one year at a time), split 2x4 spatially
     # (hemisphere x 90deg lon): base res is only read when zoomed in, so a
     # regional view fetches ~1/8-1/2 of the globe; tiling costs ~0-3% in
@@ -52,13 +53,15 @@ def pick_chunks(n_time, n_lat, n_lon):
     return (lat_chunk, lon_chunk)
 
 
-def compressor():
+def compressor() -> BloscCodec:
     # lossless; byte shuffle + zstd9 benchmarked best on these float32 fields
-    # (1.2-1.7x smaller than plain zstd5, same decode speed)
-    return BloscCodec(cname="zstd", clevel=9, shuffle=BloscShuffle.shuffle, typesize=4)
+    # (1.2-1.7x smaller than plain zstd5, same decode speed).
+    # Duplicated in 05_multiscale.py (scripts run with `python -I`, no shared
+    # module): keep the two definitions identical.
+    return BloscCodec(cname="zstd", clevel=9, shuffle="shuffle", typesize=4)
 
 
-def load_unit(unit):
+def load_unit(unit: dict) -> tuple[xr.DataArray, str | None]:
     kind = unit["kind"]
     files = unit["files"]
 
@@ -66,11 +69,11 @@ def load_unit(unit):
         ds = xr.open_dataset(files[0])
         (varname,) = [v for v in ds.data_vars if v not in PLACEHOLDER_VARS]
         da = ds[varname]
-        da = da.rename(varname.replace("/", "_"))
+        da = da.rename(str(varname).replace("/", "_"))
         return da, None
 
     arrays = []
-    for f, year in zip(files, unit["years"]):
+    for f, year in zip(files, unit["years"], strict=True):
         ds = xr.open_dataset(f)
         (varname,) = [v for v in ds.data_vars if v not in PLACEHOLDER_VARS]
         da = ds[varname]
@@ -87,11 +90,11 @@ def load_unit(unit):
             da = da.reset_coords(stray, drop=True)
         arrays.append(da.expand_dims(time=[pd.Timestamp(f"{year}-01-01")]))
     da = xr.concat(arrays, dim="time")
-    da = da.rename(varname.replace("/", "_"))
-    return da, varname
+    da = da.rename(str(varname).replace("/", "_"))
+    return da, str(varname)
 
 
-def main():
+def main() -> None:
     manifest_path, idx = sys.argv[1], int(sys.argv[2])
     with open(manifest_path) as fh:
         lines = fh.readlines()

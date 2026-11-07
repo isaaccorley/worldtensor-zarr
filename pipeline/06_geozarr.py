@@ -17,10 +17,11 @@ Registration is "pixel": the affine maps array index (0, 0) to the outer
 corner of the first cell (GDAL convention), so the origin is half a cell
 outside the first coordinate value. Rows run south->north (lat ascending), so
 the y pixel size `e` is positive. Pyramid levels share the origin; only pixel
-size changes (padded 2x halving).
+size changes (2x halving with trimmed odd trailing rows/cols).
 
-Usage: 10_geozarr.py   (env WT_STORE, WT_MANIFEST)
+Usage: 06_geozarr.py   (env WT_STORE, WT_MANIFEST)
 """
+
 import json
 import os
 import sys
@@ -70,16 +71,16 @@ ROOT_ATTRS = {
 class Grid:
     """Base-grid geometry, read once from the first variable's coords."""
 
-    def __init__(self, group):
-        lat = np.asarray(group["lat"][:], dtype="float64")
-        lon = np.asarray(group["lon"][:], dtype="float64")
+    def __init__(self, group: zarr.Group) -> None:
+        lat = np.asarray(get_array(group, "lat")[:], dtype="float64")
+        lon = np.asarray(get_array(group, "lon")[:], dtype="float64")
         self.res_x = float(lon[1] - lon[0])
         self.res_y = float(lat[1] - lat[0])  # > 0: rows run south -> north
         self.x0 = float(lon[0]) - self.res_x / 2  # outer cell edge
         self.y0 = float(lat[0]) - self.res_y / 2
         self.shape = (lat.size, lon.size)
 
-    def level(self, factor, shape):
+    def level(self, factor: int, shape: tuple[int, ...]) -> tuple[list[float], list[float], str]:
         ny, nx = shape
         a, e = self.res_x * factor, self.res_y * factor
         transform = [a, 0.0, self.x0, 0.0, e, self.y0]
@@ -88,7 +89,7 @@ class Grid:
         return transform, bbox, geotransform
 
 
-def geo_attrs(transform, shape, bbox):
+def geo_attrs(transform: list[float], shape: tuple[int, ...], bbox: list[float]) -> dict:
     return {
         "proj:code": "EPSG:4326",
         "spatial:dimensions": ["lat", "lon"],
@@ -99,12 +100,12 @@ def geo_attrs(transform, shape, bbox):
     }
 
 
-def set_geotransform(group, geotransform):
+def set_geotransform(group: zarr.Group, geotransform: str) -> None:
     if "spatial_ref" in group:
         group["spatial_ref"].attrs["GeoTransform"] = geotransform
 
 
-def link_crs(array):
+def link_crs(array: zarr.Array) -> None:
     """CF `coordinates` link so xarray decodes spatial_ref as a coordinate of
     the data variable; without it `ds[var].rio.crs` is None even though
     `grid_mapping` is set (the grid-mapping var stays a separate data var).
@@ -116,11 +117,18 @@ def link_crs(array):
         array.attrs.put(attrs)
 
 
-def factor_of(level):
+def get_array(group: zarr.Group, name: str) -> zarr.Array:
+    arr = group[name]
+    if not isinstance(arr, zarr.Array):
+        raise TypeError(f"{name} in {group.path!r} is not an array")
+    return arr
+
+
+def factor_of(level: str) -> int:
     return 1 if level == "." else int(level.rstrip("x"))
 
 
-def open_fresh(path):
+def open_fresh(path: str) -> zarr.Group:
     """Open a group from its own zarr.json, never from consolidated metadata:
     a stale consolidated snapshot (e.g. from before a pyramid rebuild) would
     hand back old array shapes, and writing attrs then re-serializes those
@@ -128,24 +136,32 @@ def open_fresh(path):
     return zarr.open_group(STORE, path=path, mode="r+", use_consolidated=False)
 
 
-def patch_variable(grid, group_path):
+def patch_variable(grid: Grid, group_path: str) -> None:
     g = open_fresh(group_path)
     # the data array is the one gridded on (lat, lon)
-    (var,) = [k for k, a in g.arrays() if tuple(a.metadata.dimension_names or ())[-2:] == ("lat", "lon")]
+    (var,) = [
+        k
+        for k, a in g.arrays()
+        if tuple(getattr(a.metadata, "dimension_names", None) or ())[-2:] == ("lat", "lon")
+    ]
     # discover levels from child groups ("2x", "4x", ...) so this is
     # idempotent and independent of whatever multiscales attr exists
     subs = sorted((k for k, _ in g.groups() if k.endswith("x") and k[:-1].isdigit()), key=factor_of)
     levels = [".", *subs]
-    method = g[subs[0]][var].attrs.get("resampling_method", "average") if subs else "average"
+    method = (
+        get_array(open_fresh(f"{group_path}/{subs[0]}"), var).attrs.get("resampling_method", "average")
+        if subs
+        else "average"
+    )
 
     layout = []
     for level in levels:
         node = g if level == "." else open_fresh(f"{group_path}/{level}")
-        shape = node[var].shape[-2:]
+        shape = get_array(node, var).shape[-2:]
         f = factor_of(level)
         transform, bbox, gt = grid.level(f, shape)
         set_geotransform(node, gt)
-        link_crs(node[var])
+        link_crs(get_array(node, var))
         item = {
             "asset": var if level == "." else f"{level}/{var}",
             "transform": {"scale": [float(f), float(f)], "translation": [0.0, 0.0]},
@@ -156,32 +172,38 @@ def patch_variable(grid, group_path):
             prev = levels[levels.index(level) - 1]
             item["derived_from"] = var if prev == "." else f"{prev}/{var}"
             item["resampling_method"] = method
-            node.attrs.update({
-                "zarr_conventions": [CONVENTIONS["proj"], CONVENTIONS["spatial"]],
-                **geo_attrs(transform, shape, bbox),
-            })
+            node.attrs.update(
+                {
+                    "zarr_conventions": [CONVENTIONS["proj"], CONVENTIONS["spatial"]],
+                    **geo_attrs(transform, shape, bbox),
+                }
+            )
         layout.append(item)
 
-    base_shape = g[var].shape[-2:]
+    base_shape = get_array(g, var).shape[-2:]
     transform, bbox, _ = grid.level(1, base_shape)
-    g.attrs.update({
-        "zarr_conventions": [CONVENTIONS["multiscales"], CONVENTIONS["proj"], CONVENTIONS["spatial"]],
-        "multiscales": {"layout": layout, "resampling_method": method},
-        **geo_attrs(transform, base_shape, bbox),
-    })
+    g.attrs.update(
+        {
+            "zarr_conventions": [CONVENTIONS["multiscales"], CONVENTIONS["proj"], CONVENTIONS["spatial"]],
+            "multiscales": {"layout": layout, "resampling_method": method},
+            **geo_attrs(transform, base_shape, bbox),
+        }
+    )
 
     if "ts" in g:
         ts = open_fresh(f"{group_path}/ts")
         _, _, gt = grid.level(1, base_shape)
         set_geotransform(ts, gt)
-        link_crs(ts[var])
-        ts.attrs.update({
-            "zarr_conventions": [CONVENTIONS["proj"], CONVENTIONS["spatial"]],
-            **geo_attrs(transform, base_shape, bbox),
-        })
+        link_crs(get_array(ts, var))
+        ts.attrs.update(
+            {
+                "zarr_conventions": [CONVENTIONS["proj"], CONVENTIONS["spatial"]],
+                **geo_attrs(transform, base_shape, bbox),
+            }
+        )
 
 
-def main():
+def main() -> None:
     with open(MANIFEST) as fh:
         groups = [json.loads(line)["group_path"] for line in fh]
     root = open_fresh("")

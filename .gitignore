@@ -5,3 +5,5 @@ __pycache__/
 .convert_job_id
 .pyramid_job_id
 .consolidate_job_id
+.venv
+__pycache__
