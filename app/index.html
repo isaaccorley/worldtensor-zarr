@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WorldTensor</title>
     <meta name="description" content="757 harmonized Earth-system variables, 1900–2025, streamed straight from GeoZarr on a WebGL globe." />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#0b0f0f" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="canonical" href="https://research.taylorgeospatial.org/worldtensor-geozarr/" />
     <meta property="og:type" content="website" />
@@ -48,7 +48,9 @@
       <aside class="nav" id="nav"></aside>
 
       <section class="stage">
+        <div class="glow" id="glow" aria-hidden="true"></div>
         <div id="map"></div>
+        <div class="caption" id="caption" aria-hidden="true"><div class="kick" id="cap-kick"></div><div class="big" id="cap-big"></div></div>
         <footer class="timeline" id="timeline">
           <button class="play" id="play" title="Play / pause (space)" aria-label="Play">
             <svg viewBox="0 0 16 16" class="i-play"><path d="M4 2.5v11L13 8z" /></svg>
@@ -80,7 +82,7 @@
             <span class="actions">
               <button class="txt-btn" id="auto" title="Reset to the area-weighted 2nd–98th percentile">auto</button>
               <button class="txt-btn" id="rev" title="Reverse colormap">rev</button>
-              <button class="txt-btn" id="ramp-btn" title="Choose colormap">cmap</button>
+              <button class="txt-btn" id="ramp-btn" title="All colormaps">more</button>
             </span>
           </div>
           <button class="ramp" id="ramp" title="Choose colormap"></button>
@@ -90,6 +92,8 @@
             <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.95" title="Opacity" aria-label="Opacity" />
             <input id="vmax" inputmode="decimal" aria-label="Maximum" />
           </div>
+          <div class="ramps" id="ramps"></div>
+          <div class="cmap-name"><b id="cmap-name"></b><span>press 1–6</span></div>
           <div class="cmap-grid" id="cmap-grid" hidden></div>
         </section>
 

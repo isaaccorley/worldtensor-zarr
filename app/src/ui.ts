@@ -1,7 +1,7 @@
 import type { Variable } from "./catalog.js";
 import { DOMAIN_LABELS } from "./catalog.js";
 import type { ColormapName } from "./colormaps.js";
-import { PICKER, swatchUrl } from "./colormaps.js";
+import { PICKER, QUICK, swatchUrl } from "./colormaps.js";
 import type { Facets, FamilyIndex, FacetDim } from "./facets.js";
 import { available, buildFamilies, defaultVariant, facetLabel, FACET_ORDER, pickVariant } from "./facets.js";
 import { fmt, fmtLatLng, sparkline, trendPerDecade } from "./format.js";
@@ -78,6 +78,18 @@ function renderSelection(s: State) {
   $("var-title").textContent = titleOf(s);
   $("var-sub").textContent = `${v.path}${v.units ? `  ·  ${v.units}` : ""}`;
   $("crumb").textContent = `${(DOMAIN_LABELS[v.domain] ?? v.domain).toLowerCase()} / ${family.label}`;
+  const cap = $("cap-big");
+  if (cap.dataset.key !== v.path) {
+    cap.dataset.key = v.path;
+    cap.textContent = titleOf(s);
+    // restart the rise animation on each new variable
+    cap.style.animation = "none";
+    void cap.offsetWidth;
+    cap.style.animation = "";
+    const facetBits = FACET_ORDER.filter((d) => facets[d]).map((d) => facetLabel(d, facets[d]!));
+    const span = s.years.length > 1 ? `${s.years[0]}–${s.years[s.years.length - 1]}` : "static";
+    $("cap-kick").textContent = [DOMAIN_LABELS[v.domain] ?? v.domain, ...facetBits, span].join(" · ");
+  }
   const box = $("facets");
   const key = `${v.path}`;
   if (box.dataset.key === key) return;
@@ -153,6 +165,15 @@ export function renderLegend(s: State) {
     ).join("");
   }
   for (const b of grid.querySelectorAll<HTMLElement>(".swatch")) b.classList.toggle("is-active", b.dataset.cmap === s.cmap);
+  const ramps = $("ramps");
+  if (!ramps.dataset.ready) {
+    ramps.dataset.ready = "1";
+    ramps.innerHTML = QUICK.map(
+      (n, i) => `<button data-cmap="${n}" title="${n} (${i + 1})" style="background-image:url(${swatchUrl(s.sprite, n)})"><i>${i + 1}</i></button>`,
+    ).join("");
+  }
+  for (const b of ramps.querySelectorAll<HTMLElement>("button")) b.classList.toggle("is-active", b.dataset.cmap === s.cmap);
+  $("cmap-name").textContent = s.cmap + (s.reversed ? " · reversed" : "");
 }
 
 // ---------- right: pixel inspector ----------
@@ -239,10 +260,12 @@ export function bindUi(s: State, a: Actions) {
   const toggleGrid = () => (grid.hidden = !grid.hidden);
   $("ramp").addEventListener("click", toggleGrid);
   $("ramp-btn").addEventListener("click", toggleGrid);
-  grid.addEventListener("click", (e) => {
+  const pickCmap = (e: Event) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-cmap]");
     if (b) actions.update({ cmap: b.dataset.cmap as ColormapName });
-  });
+  };
+  grid.addEventListener("click", pickCmap);
+  $("ramps").addEventListener("click", pickCmap);
   $("rev").addEventListener("click", () => actions.update({ reversed: !s.reversed }));
   $("auto").addEventListener("click", () =>
     actions.update({
@@ -276,6 +299,8 @@ export function bindUi(s: State, a: Actions) {
     } else if (e.key === " ") {
       e.preventDefault();
       actions.setPlaying(!s.playing);
+    } else if (/^[1-6]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      actions.update({ cmap: QUICK[Number(e.key) - 1] });
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       if (s.playing) actions.setPlaying(false);

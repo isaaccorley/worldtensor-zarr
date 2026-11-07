@@ -5,18 +5,18 @@ import maplibregl from "maplibre-gl";
 const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
 const LABELS = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-/** Monochrome basemap: black water, near-black land, hairline borders. */
+/** Green-tinted monochrome basemap: near-black water and land, hairline borders. */
 function styleBasemap(map: maplibregl.Map) {
   for (const layer of map.getStyle().layers) {
-    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#151515");
+    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#141a19");
     if (layer.type === "fill" && /water/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "fill-color", "#0a0a0a");
+      map.setPaintProperty(layer.id, "fill-color", "#090d0d");
     }
     if (layer.type === "fill" && /land(cover|use)|park|building/.test(layer.id)) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
     if (layer.type === "line" && /boundary|admin/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "line-color", "rgba(255,255,255,0.32)");
+      map.setPaintProperty(layer.id, "line-color", "rgba(230,246,231,0.32)");
     }
   }
 }
@@ -75,9 +75,10 @@ export function createMap(
       styleBasemap(map);
       // atmosphere halo around the globe, fading out as you zoom in
       map.setSky({
-        "sky-color": "#000000",
-        "horizon-color": "#1a1a1a",
-        "fog-color": "#000000",
+        // mint rim light, after Earthscale's globe
+        "sky-color": "#0b0f0f",
+        "horizon-color": "#4fbf98",
+        "fog-color": "#0b0f0f",
         "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
       });
       // pull label layers from the full style and stack them above the raster
@@ -94,8 +95,8 @@ export function createMap(
           if (layer.type !== "symbol" || !/place|country|continent/.test(layer.id)) continue;
           if (map.getLayer(layer.id)) continue;
           map.addLayer(layer);
-          map.setPaintProperty(layer.id, "text-color", "rgba(237,237,237,0.72)");
-          map.setPaintProperty(layer.id, "text-halo-color", "rgba(0,0,0,0.85)");
+          map.setPaintProperty(layer.id, "text-color", "rgba(230,246,231,0.74)");
+          map.setPaintProperty(layer.id, "text-halo-color", "rgba(9,13,13,0.85)");
           map.setPaintProperty(layer.id, "text-halo-width", 1);
           beforeId ??= layer.id;
         }
@@ -108,7 +109,7 @@ export function createMap(
         type: "line",
         source: "graticule",
         paint: {
-          "line-color": "#ffffff",
+          "line-color": "#e6f6e7",
           "line-opacity": ["case", ["==", ["get", "equator"], true], 0.38, 0.2],
           "line-width": 0.7,
         },
@@ -135,4 +136,31 @@ export function pinMarker(map: maplibregl.Map) {
       marker.remove();
     },
   };
+}
+
+/**
+ * Soft mint halo behind the globe (Earthscale-style), sized from the globe's
+ * on-screen radius. The map canvas is transparent off-globe, so a div under it shows.
+ */
+export function globeGlow(map: maplibregl.Map, el: HTMLElement, caption?: HTMLElement) {
+  const place = () => {
+    const c = map.getCenter();
+    const lat = Math.max(-80, Math.min(80, c.lat));
+    // a point 80 degrees along the meridian sits near the limb: d ~ r sin(80)
+    const p0 = map.project([c.lng, lat]);
+    const p1 = map.project([c.lng, lat > 0 ? lat - 80 : lat + 80]);
+    const r = Math.hypot(p1.x - p0.x, p1.y - p0.y) / Math.sin((80 * Math.PI) / 180);
+    const zoom = map.getZoom();
+    el.style.setProperty("--r", `${r}px`);
+    el.style.opacity = String(Math.max(0, Math.min(1, 4.5 - zoom)));
+    // the big title steps aside once you zoom in to read the data
+    if (caption) caption.style.opacity = String(Math.max(0, Math.min(1, 3.6 - zoom)));
+    const cv = map.getCanvas().getBoundingClientRect();
+    const host = el.parentElement!.getBoundingClientRect();
+    el.style.left = `${cv.left - host.left + cv.width / 2}px`;
+    el.style.top = `${cv.top - host.top + cv.height / 2}px`;
+  };
+  map.on("move", place);
+  map.on("resize", place);
+  place();
 }

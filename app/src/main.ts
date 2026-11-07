@@ -1,4 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import type maplibregl from "maplibre-gl";
 import "./styles.css";
 import { createColormapTexture } from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { Device, Texture } from "@luma.gl/core";
@@ -10,7 +11,7 @@ import { fmt, fmtLatLng } from "./format.js";
 import type { Sources } from "./layers.js";
 import { buildLayers, openSources } from "./layers.js";
 import type { MapHandles } from "./map.js";
-import { createMap, pinMarker } from "./map.js";
+import { createMap, globeGlow, pinMarker } from "./map.js";
 import { Probe, readSeries } from "./probe.js";
 import { ViewerStore } from "./store.js";
 import { $, bindUi, renderInspector, renderLegend, renderList, renderTimeline } from "./ui.js";
@@ -155,8 +156,18 @@ function startLoop() {
 function wireMap() {
   const { map } = handles;
   const readout = $("readout");
+  // on a globe, unproject clamps cursors past the limb onto the horizon;
+  // a point is on the globe only if it projects back to where the cursor is
+  const onGlobe = (e: maplibregl.MapMouseEvent) => {
+    const back = map.project(e.lngLat);
+    return Math.hypot(back.x - e.point.x, back.y - e.point.y) < 2;
+  };
   map.on("mousemove", async (e) => {
     if (!probe) return;
+    if (!onGlobe(e)) {
+      readout.hidden = true;
+      return;
+    }
     const { lng, lat } = e.lngLat;
     const coarse = state.playing || state.detailYearIdx === null;
     const val = await probe.valueAt(lng, lat, state.yearIdx, coarse).catch(() => null);
@@ -165,11 +176,11 @@ function wireMap() {
       return;
     }
     readout.hidden = false;
-    readout.style.transform = `translate(${e.point.x + 16}px, ${e.point.y + 16}px)`;
+    readout.style.transform = `translate(${e.originalEvent.clientX + 16}px, ${e.originalEvent.clientY + 16}px)`;
     readout.innerHTML = `<b>${fmt(val)}</b> ${state.variable.units ?? ""}<br><span>${fmtLatLng(lng, lat)}</span>`;
   });
   map.on("mouseout", () => (readout.hidden = true));
-  map.on("click", (e) => void inspect(e.lngLat.lng, e.lngLat.lat));
+  map.on("click", (e) => onGlobe(e) && void inspect(e.lngLat.lng, e.lngLat.lat));
   map.on("moveend", () => writeHash(state, map));
 }
 
@@ -214,6 +225,7 @@ async function boot() {
     draw();
   });
   pin.marker = pinMarker(handles.map);
+  globeGlow(handles.map, $("glow"), $("caption"));
   bindUi(state, {
     selectVariable: (v) => void selectVariable(v),
     setYear,

@@ -6,12 +6,15 @@ export type ColormapName = keyof typeof COLORMAP_INDEX;
 
 /** Curated picker order: perceptually uniform first, then diverging. */
 export const PICKER: ColormapName[] = [
-  "turbo", "viridis", "magma", "inferno", "rdylbu", "spectral",
-  "thermal", "cividis", "ylgnbu",
+  "turbo", "viridis", "plasma", "magma", "inferno", "cividis", "rdylbu", "spectral",
+  "thermal", "ylgnbu",
   "haline", "deep", "ice", "dense", "tempo", "algae",
   "speed", "matter", "amp", "solar", "gist_earth", "terrain",
   "balance", "rdbu", "coolwarm", "curl", "brbg", "piyg",
 ];
+
+/** One-key ramps (1–6): the matplotlib perceptual set plus turbo for temperature. */
+export const QUICK: ColormapName[] = ["viridis", "plasma", "inferno", "magma", "cividis", "turbo"];
 
 const DOMAIN_DEFAULT: Record<string, ColormapName> = {
   climate: "viridis",
