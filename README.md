@@ -1,91 +1,80 @@
-# worldtensor
+# WorldTensor GeoZarr
 
-NetCDF -> GeoZarr conversion, multiscale pyramids, and a visualization webapp
-for [WorldTensor](https://arxiv.org/abs/2607.03298), a harmonized Earth system
-dataset ([Zenodo](https://zenodo.org/records/19047618)).
+**757 harmonized Earth-system variables (1900–2025, 0.25°) as one cloud-native GeoZarr store, with a WebGL globe viewer that streams it directly from object storage.**
 
-## Pipeline
+**[Open the viewer →](https://research.taylorgeospatial.org/worldtensor-geozarr/)** · Data: `https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr` · [Paper](https://arxiv.org/abs/2607.03298) · [Original release (Zenodo)](https://zenodo.org/records/19047618)
 
-Runs on the RAILS cluster via SLURM, chained end to end with job dependencies:
+![WorldTensor viewer: 2-metre temperature with a pixel time series](docs/assets/hero.png)
 
-1. `01_download.sbatch` — fetch the 14 Zenodo zip archives (48.5 GB), checksum-verified
-2. `02_extract.sbatch` — unzip each domain to `raw/netcdf/<domain>/...`
-3. `03_build_manifest.py` / `.sbatch` — enumerate every (domain, variable) unit, then
-   self-submits the remaining stages sized to the manifest
-4. `04_convert.py` / `.sbatch` — convert each variable to a self-contained GeoZarr
-   group (own lat/lon/time coords, CF-1.8 `spatial_ref`) in a single
-   `worldtensor.zarr` store
-5. `05_multiscale.py` / `.sbatch` — cascaded halving pyramid per variable, resampling
-   chosen by semantics (`sum`/`mode`/`average`), plus a `ts` pixel-time-series array
-6. `06_finalize.sbatch` — GeoZarr attrs (`10_geozarr.py`), per-group metadata
-   consolidation (`06_consolidate.py`) and `catalog.json` for the viewer (`08_catalog.py`)
+This repo converts the [WorldTensor](https://arxiv.org/abs/2607.03298) NetCDF release into a single GeoZarr store on [Source Cooperative](https://source.coop) and serves a static viewer for it. There is no tile server: the browser reads Zarr chunks over HTTP range requests.
 
-`submit_chain.sh` submits stages 4-6; `WT_STORE` selects the output store.
-Working data lives on `/projects/bjey/worldtensor` (not in git).
+## Use the data
 
-## Store layout
+```python
+import xarray as xr
 
-Tuned for a static browser app reading over HTTPS range requests
-(see `bench/` for the measurements behind these choices).
+ds = xr.open_zarr("https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr/climate/t2m_mean")
+ds.t2m_mean.sel(time="2025", lat=48.85, lon=2.35, method="nearest")  # Paris, K
+```
 
-| array | chunks | why |
+Each variable is its own group (`<domain>/<variable>`, e.g. `ocean/chl_max`, `static/soil_properties/bdod_0-5cm_mean`). Opening a group is a single request because its metadata is consolidated. `catalog.json` at the store root lists all 757 variables with their units, years and default colour ranges.
+
+| array | chunks | serves |
 |---|---|---|
-| `<var>/<var>` (base, 721x1440) | 1 year x 361x360 (2x4 tiles) | regional zoom fetches only visible tiles |
-| `<var>/2x/<var>` | 1 year x whole globe | global view = 1 request |
-| `<var>/{4x,8x}/<var>` | all years x whole globe | time slider / animation = 1 request |
-| `<var>/ts/<var>` | (all years, 16, 16) inner chunks, one shard | pixel time series = one ~40 KB range read |
+| `<var>` (721 × 1440) | 1 year × 361 × 360 | full resolution, 8 tiles per year |
+| `2x/<var>` | 1 year × whole globe | the global view in one request |
+| `4x/<var>`, `8x/<var>` | all years × whole globe | the time slider in one request |
+| `ts/<var>` | all years × 16 × 16, one shard | a pixel's full history in about 40 KB |
 
-- Codec: lossless blosc zstd level 9 + byte shuffle (float32, NaN fill).
-- No root consolidated metadata (would be ~24 MB); each variable group is
-  consolidated, so `xr.open_zarr(f"{store}/{group}")` is one request.
-- `catalog.json` at the store root lists every variable's units, years, array
-  shapes/chunks and p2/p98 color range; the viewer synthesizes each array's
-  `zarr.json` from it plus `array_template`, so it makes no metadata requests.
-- Grid: EPSG:4326 cell centers, lat ascending (-90..90), lon 0..359.75.
-- Pyramid levels halve with the odd trailing (90N) row trimmed, so every level is
-  exactly affine; the base level keeps all 721 rows.
+The store is lossless: float32 with Blosc zstd and byte shuffle, NaN as nodata. The grid is EPSG:4326 cell centres, with latitude ascending from −90 to 90 and longitude running 0 to 359.75.
 
-## GeoZarr
+### GeoZarr
 
-Each variable group is GeoZarr: CF-1.8 (`spatial_ref` grid mapping with WKT and
-GDAL `GeoTransform`, `grid_mapping` + `coordinates` on data arrays,
-`dimension_names`) plus the zarr-conventions v0.1
-[`multiscales`](https://github.com/zarr-conventions/multiscales),
-[`proj`](https://github.com/zarr-conventions/proj) and
-[`spatial`](https://github.com/zarr-conventions/spatial) attributes, registered in
-`zarr_conventions`. Level and `ts` groups carry their own `proj:`/`spatial:`
-(the proj convention only inherits to direct child arrays).
-`spatial:registration` is `pixel` (GDAL corner origin) and `e > 0` because rows
-run south to north.
+Every group follows CF-1.8: a `spatial_ref` grid mapping with WKT and a GDAL `GeoTransform`, and `grid_mapping` plus `coordinates` on each data array. Each group also carries the zarr-conventions v0.1 [`multiscales`](https://github.com/zarr-conventions/multiscales), [`proj`](https://github.com/zarr-conventions/proj) and [`spatial`](https://github.com/zarr-conventions/spatial) attributes. Overview levels are built by 2× averaging, and they drop the odd 90°N row so that every level is exactly affine. [`bench/geozarr/validate.py`](bench/geozarr/validate.py) checks all 3,028 levels against the official schemas, against the coordinate arrays and against rioxarray; it currently reports 0 errors.
 
-`bench/geozarr/validate.py` checks every group against the official JSON
-schemas, checks `spatial:transform` against the first *and* last coordinate of
-every level, and round-trips the CRS through rioxarray.
+## Viewer
 
-## Viewer (`web/`)
+<p>
+  <img src="docs/assets/playback.gif" width="43%" alt="Animating 2-metre temperature, 1940–2025">
+  <img src="docs/assets/soil.png" width="55%" alt="Soil bulk density over the Americas">
+</p>
 
-Static Vite + TypeScript app: MapLibre globe + deck.gl `ZarrLayer`
-([deck.gl-raster](https://github.com/developmentseed/deck.gl-raster)) reading the
-store straight over HTTP range requests — no tile server.
+The viewer uses Vite, TypeScript, a MapLibre globe and deck.gl-raster's [`ZarrLayer`](https://github.com/developmentseed/deck.gl-raster).
+
+- **Time playback:** each variable draws two layers. The 8× overview holds every year in one GPU texture, so playing or scrubbing through time makes no network requests. Once you pause, a full-resolution layer fetches the year you're on.
+- **No metadata requests:** array metadata comes from `catalog.json`, and chunk bytes are deduplicated and cached in memory.
+- **Hover** reads the exact pixel value. **Clicking** reads that pixel's whole history from the sharded `ts` array and plots it with a trend per decade.
 
 ```bash
 cd web && npm install
-WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor.zarr npm run dev   # serves the store at /data
-VITE_DATA_URL=https://data.source.coop/taylor-geospatial/<repo>/worldtensor.zarr npm run build
+WT_DATA=/path/to/worldtensor.zarr npm run dev                                         # local store at /data
+VITE_DATA_URL=https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr npm run build
 ```
 
-- Two layers per variable: an *overview* on the 8x/16x levels (every year in one
-  Texture2DArray, so play/scrub is a uniform change with zero requests) and a
-  *detail* layer on base/2x that fetches only the shown year once it settles.
-- `ViewerStore` answers every pyramid `zarr.json` from `catalog.json` (zero
-  metadata round trips), dedupes in-flight requests and LRU-caches chunk bytes.
-- Hover = exact pixel point query against cached chunks; click = full time
-  series from the sharded `ts` array, with a per-decade OLS trend.
-- The grid is stored south-up (lat ascending), which mirrors mesh winding on the
-  globe; layers cull *front* faces (see `layers.ts`).
+## Pipeline
 
-## Status
+SLURM scripts in [`pipeline/`](pipeline/) run download → extract → manifest → convert → pyramid and `ts` → GeoZarr metadata, consolidation and catalog. [`bench/`](bench/) holds the codec, chunking and validation benchmarks behind the layout choices.
 
-Store built (`worldtensor.zarr`, lossless, GeoZarr-validated). Viewer runs locally
-against it. Next: rehost to Source Cooperative (`taylor-geospatial`) and point
-`VITE_DATA_URL` at it.
+## Citation
+
+If you use this data, please cite the WorldTensor paper and the original data release:
+
+```bibtex
+@article{rodriguezpardo2026worldtensor,
+  title   = {A harmonised dataset for Earth system foundation models},
+  author  = {Rodriguez-Pardo, Carlos and Tavoni, Massimo},
+  journal = {arXiv preprint arXiv:2607.03298},
+  year    = {2026}
+}
+
+@dataset{rodriguezpardo2026worldtensor_data,
+  title     = {Data for WorldTensor: A Harmonized Dataset for Earth System Foundation Models},
+  author    = {Rodriguez-Pardo, Carlos and Tavoni, Massimo},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.19047618},
+  url       = {https://zenodo.org/records/19047618}
+}
+```
+
+The data is redistributed under the original release's [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) license. Values, units and variable semantics are unchanged from the source; only the format and layout differ.
