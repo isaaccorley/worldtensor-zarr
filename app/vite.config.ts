@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 /**
  * Dev/preview only: serve a local zarr store at /data with HTTP Range support, so the
  * app reads it exactly as it will read Source Cooperative over HTTPS.
- *   WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor.zarr npm run dev
+ *   WT_DATA=/projects/bjey/worldtensor/zarr/worldtensor.zarr bun run dev
  */
 function localZarr(root: string | undefined): Plugin {
   return {

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorldTensor</title>
+    <meta name="description" content="757 harmonized Earth-system variables streamed straight from GeoZarr on a WebGL globe." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="progress" id="led" aria-hidden="true"><span></span></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark">WorldTensor</span>
+        <span class="crumb mono" id="crumb"></span>
+      </div>
+      <button class="search-trigger" id="open-palette">
+        <span>Search <span id="var-count">757</span> variables</span><kbd class="mono">⌘K</kbd>
+      </button>
+      <nav class="links mono">
+        <a href="https://source.coop/tge-labs/worldtensor" target="_blank" rel="noopener">Data</a>
+        <a href="https://arxiv.org/abs/2607.03298" target="_blank" rel="noopener">Paper</a>
+        <a href="https://github.com/taylor-geospatial/worldtensor-geozarr" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="shell">
+      <aside class="nav" id="nav"></aside>
+
+      <section class="stage">
+        <div id="map"></div>
+        <footer class="timeline" id="timeline">
+          <button class="play" id="play" title="Play / pause (space)" aria-label="Play">
+            <svg viewBox="0 0 16 16" class="i-play"><path d="M4 2.5v11L13 8z" /></svg>
+            <svg viewBox="0 0 16 16" class="i-pause"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" /></svg>
+          </button>
+          <div class="year mono" id="year">—</div>
+          <div class="track">
+            <input type="range" id="slider" min="0" max="0" value="0" aria-label="Year" />
+            <div class="ruler" id="ruler"></div>
+            <div class="ticks mono" id="ticks"></div>
+          </div>
+          <div class="seg mono" id="speed">
+            <button data-fps="3">0.5×</button><button data-fps="6" class="is-active">1×</button><button data-fps="14">2×</button>
+          </div>
+        </footer>
+      </section>
+
+      <aside class="side">
+        <section class="block" id="selection">
+          <div class="label">Variable</div>
+          <h1 id="var-title">—</h1>
+          <div class="meta mono"><span id="var-sub"></span></div>
+          <div class="facets" id="facets"></div>
+        </section>
+
+        <section class="block" id="legend">
+          <div class="label row">
+            <span>Color <span class="dim" id="units"></span></span>
+            <span class="actions">
+              <button class="txt-btn" id="auto" title="Reset to the area-weighted 2nd–98th percentile">auto</button>
+              <button class="txt-btn" id="rev" title="Reverse colormap">rev</button>
+              <button class="txt-btn" id="ramp-btn" title="Choose colormap">cmap</button>
+            </span>
+          </div>
+          <button class="ramp" id="ramp" title="Choose colormap"></button>
+          <div class="cbar-ticks mono" id="cbar-ticks"></div>
+          <div class="scale mono">
+            <input id="vmin" inputmode="decimal" aria-label="Minimum" />
+            <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.95" title="Opacity" aria-label="Opacity" />
+            <input id="vmax" inputmode="decimal" aria-label="Maximum" />
+          </div>
+          <div class="cmap-grid" id="cmap-grid" hidden></div>
+        </section>
+
+        <section class="block grow" id="inspector">
+          <div class="label row">
+            <span>Pixel</span>
+            <button class="txt-btn" id="ins-close" title="Clear">clear</button>
+          </div>
+          <div class="ins-empty" id="ins-empty">Click anywhere on the globe to read that pixel's full history.</div>
+          <div class="ins-body" id="ins-body" hidden>
+            <div class="mono dim" id="ins-coord"></div>
+            <div class="ins-value"><span class="mono" id="ins-now"></span><span class="mono dim" id="ins-units"></span></div>
+            <div class="mono dim small" id="ins-trend"></div>
+            <div class="ins-chart" id="ins-chart"></div>
+            <div class="ins-axis mono"><span id="ins-y0"></span><span id="ins-y1"></span></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <div class="palette" id="palette" hidden>
+      <div class="palette-box" role="dialog" aria-label="Search variables">
+        <input id="palette-q" class="mono" placeholder="Search variables, domains, units…" autocomplete="off" spellcheck="false" />
+        <ul id="palette-results"></ul>
+        <div class="palette-foot mono"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span></div>
+      </div>
+    </div>
+
+    <div class="readout mono" id="readout" hidden></div>
+    <div class="boot mono" id="boot"><span id="boot-msg">loading catalog</span></div>
+    <span id="kicker" hidden></span>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

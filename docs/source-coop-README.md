@@ -20,7 +20,7 @@ ds = xr.open_zarr("https://data.source.coop/tge-labs/worldtensor/worldtensor.zar
 ds.t2m_mean.sel(time="2025", lat=48.85, lon=2.35, method="nearest")  # Paris, K
 ```
 
-Each variable is its own self-contained group, `<domain>/<variable>`, for example `climate/tp_sum`, `ocean/chl_max` or `static/soil_properties/bdod_0-5cm_mean`. Each group has its own consolidated metadata, so opening one takes a single request. `catalog.json` at the store root lists every variable with its units, years, array shapes and a default colour range.
+Each variable is its own self-contained group, `<domain>/<variable>`, for example `climate/tp_sum`, `ocean/chl_max` or `static/soil_properties/bdod_0-5cm_mean`. Each group has its own consolidated metadata, so opening one takes a single request. `catalog.json` at the store root lists every variable with its units, years, array shapes and a default color range.
 
 ## Layout
 
@@ -32,7 +32,7 @@ Each variable is its own self-contained group, `<domain>/<variable>`, for exampl
 | `ts/<var>` | all years × 16 × 16 chunks in one shard | a pixel's full history (about 40 KB per read) |
 
 - **Encoding:** Zarr v3, float32, lossless Blosc zstd level 9 with byte shuffle, NaN as nodata.
-- **Grid:** EPSG:4326 cell centres, latitude ascending −90 → 90, longitude 0 → 359.75.
+- **Grid:** EPSG:4326 cell centers, latitude ascending −90 → 90, longitude 0 → 359.75.
 - **Overviews:** built by 2× averaging; the odd 90°N row is dropped so every level is exactly affine.
 - **GeoZarr:** CF-1.8 grid mapping (WKT and GDAL `GeoTransform`) plus the zarr-conventions v0.1 `multiscales`, `proj:` and `spatial:` attributes. Every level validates against the official schemas and round-trips through rioxarray, and deck.gl-zarr opens it from its own metadata.
 

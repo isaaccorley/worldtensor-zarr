@@ -17,7 +17,7 @@ ds = xr.open_zarr("https://data.source.coop/tge-labs/worldtensor/worldtensor.zar
 ds.t2m_mean.sel(time="2025", lat=48.85, lon=2.35, method="nearest")  # Paris, K
 ```
 
-Each variable is its own group (`<domain>/<variable>`, e.g. `ocean/chl_max`, `static/soil_properties/bdod_0-5cm_mean`). Opening a group is a single request because its metadata is consolidated. `catalog.json` at the store root lists all 757 variables with their units, years and default colour ranges.
+Each variable is its own group (`<domain>/<variable>`, e.g. `ocean/chl_max`, `static/soil_properties/bdod_0-5cm_mean`). Opening a group is a single request because its metadata is consolidated. `catalog.json` at the store root lists all 757 variables with their units, years and default color ranges.
 
 | array | chunks | serves |
 |---|---|---|
@@ -26,11 +26,11 @@ Each variable is its own group (`<domain>/<variable>`, e.g. `ocean/chl_max`, `st
 | `4x/<var>`, `8x/<var>` | all years × whole globe | the time slider in one request |
 | `ts/<var>` | all years × 16 × 16, one shard | a pixel's full history in about 40 KB |
 
-The store is lossless: float32 with Blosc zstd and byte shuffle, NaN as nodata. The grid is EPSG:4326 cell centres, with latitude ascending from −90 to 90 and longitude running 0 to 359.75.
+The store is lossless: float32 with Blosc zstd and byte shuffle, NaN as nodata. The grid is EPSG:4326 cell centers, with latitude ascending from −90 to 90 and longitude running 0 to 359.75.
 
 ### GeoZarr
 
-Every group follows CF-1.8: a `spatial_ref` grid mapping with WKT and a GDAL `GeoTransform`, and `grid_mapping` plus `coordinates` on each data array. Each group also carries the zarr-conventions v0.1 [`multiscales`](https://github.com/zarr-conventions/multiscales), [`proj`](https://github.com/zarr-conventions/proj) and [`spatial`](https://github.com/zarr-conventions/spatial) attributes. Overview levels are built by 2× averaging, and they drop the odd 90°N row so that every level is exactly affine. [`bench/geozarr/validate.py`](bench/geozarr/validate.py) checks all 3,028 levels against the official schemas, against the coordinate arrays and against rioxarray; it currently reports 0 errors.
+Every group follows CF-1.8: a `spatial_ref` grid mapping with WKT and a GDAL `GeoTransform`, and `grid_mapping` plus `coordinates` on each data array. Each group also carries the zarr-conventions v0.1 [`multiscales`](https://github.com/zarr-conventions/multiscales), [`proj`](https://github.com/zarr-conventions/proj) and [`spatial`](https://github.com/zarr-conventions/spatial) attributes. Overview levels are built by 2× averaging, and they drop the odd 90°N row so that every level is exactly affine. [`pipeline/09_validate.py`](pipeline/09_validate.py) checks all 3,028 levels against the official schemas, against the coordinate arrays and against rioxarray; it currently reports 0 errors.
 
 ## Viewer
 
@@ -39,21 +39,21 @@ Every group follows CF-1.8: a `spatial_ref` grid mapping with WKT and a GDAL `Ge
   <img src="docs/assets/soil.png" width="55%" alt="Soil bulk density over the Americas">
 </p>
 
-The viewer uses Vite, TypeScript, a MapLibre globe and deck.gl-raster's [`ZarrLayer`](https://github.com/developmentseed/deck.gl-raster).
+The viewer uses Bun, Vite, TypeScript, a MapLibre globe and deck.gl-raster's [`ZarrLayer`](https://github.com/developmentseed/deck.gl-raster).
 
 - **Time playback:** each variable draws two layers. The 8× overview holds every year in one GPU texture, so playing or scrubbing through time makes no network requests. Once you pause, a full-resolution layer fetches the year you're on.
 - **No metadata requests:** array metadata comes from `catalog.json`, and chunk bytes are deduplicated and cached in memory.
 - **Hover** reads the exact pixel value. **Clicking** reads that pixel's whole history from the sharded `ts` array and plots it with a trend per decade.
 
 ```bash
-cd web && npm install
-WT_DATA=/path/to/worldtensor.zarr npm run dev                                         # local store at /data
-VITE_DATA_URL=https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr npm run build
+cd app && bun install
+WT_DATA=/path/to/worldtensor.zarr bun run dev                                         # local store at /data
+VITE_DATA_URL=https://data.source.coop/tge-labs/worldtensor/worldtensor.zarr bun run build
 ```
 
 ## Pipeline
 
-SLURM scripts in [`pipeline/`](pipeline/) run download → extract → manifest → convert → pyramid and `ts` → GeoZarr metadata, consolidation and catalog. [`bench/`](bench/) holds the codec, chunking and validation benchmarks behind the layout choices.
+SLURM scripts in [`pipeline/`](pipeline/) run download → extract → manifest → convert → pyramid and `ts` → GeoZarr metadata → consolidation → catalog → validation. See [`pipeline/README.md`](pipeline/README.md) for the steps and how to run them end to end.
 
 ## Citation
 

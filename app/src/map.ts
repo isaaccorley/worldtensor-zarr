@@ -5,18 +5,18 @@ import maplibregl from "maplibre-gl";
 const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
 const LABELS = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-/** Cool, neutral basemap: near-black water, charcoal land, hairline borders. */
+/** Monochrome basemap: black water, near-black land, hairline borders. */
 function styleBasemap(map: maplibregl.Map) {
   for (const layer of map.getStyle().layers) {
-    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#1a1e23");
+    if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#151515");
     if (layer.type === "fill" && /water/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "fill-color", "#0c0f13");
+      map.setPaintProperty(layer.id, "fill-color", "#0a0a0a");
     }
     if (layer.type === "fill" && /land(cover|use)|park|building/.test(layer.id)) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
     if (layer.type === "line" && /boundary|admin/.test(layer.id)) {
-      map.setPaintProperty(layer.id, "line-color", "rgba(255,255,255,0.42)");
+      map.setPaintProperty(layer.id, "line-color", "rgba(255,255,255,0.32)");
     }
   }
 }
@@ -75,9 +75,9 @@ export function createMap(
       styleBasemap(map);
       // atmosphere halo around the globe, fading out as you zoom in
       map.setSky({
-        "sky-color": "#07090c",
-        "horizon-color": "#1b3a5c",
-        "fog-color": "#0c1118",
+        "sky-color": "#000000",
+        "horizon-color": "#1a1a1a",
+        "fog-color": "#000000",
         "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
       });
       // pull label layers from the full style and stack them above the raster
@@ -92,8 +92,8 @@ export function createMap(
           if (layer.type !== "symbol" || !/place|country|continent/.test(layer.id)) continue;
           if (map.getLayer(layer.id)) continue;
           map.addLayer(layer);
-          map.setPaintProperty(layer.id, "text-color", "rgba(227,230,234,0.78)");
-          map.setPaintProperty(layer.id, "text-halo-color", "rgba(7,9,12,0.7)");
+          map.setPaintProperty(layer.id, "text-color", "rgba(237,237,237,0.72)");
+          map.setPaintProperty(layer.id, "text-halo-color", "rgba(0,0,0,0.85)");
           map.setPaintProperty(layer.id, "text-halo-width", 1);
           beforeId ??= layer.id;
         }

@@ -63,7 +63,7 @@ export function arrayPath(v: Variable, level: string): string {
 
 /** Human label: long_name if present, else a tidied variable name. */
 export function labelOf(v: Variable): string {
-  if (v.long_name) return v.long_name;
+  if (v.long_name) return v.long_name.replace(/metre/gi, (m) => (m[0] === "M" ? "Meter" : "meter")).replace(/ulphur/g, "ulfur");
   return v.path.split("/").slice(1).join(" / ").replaceAll("_", " ");
 }
 
