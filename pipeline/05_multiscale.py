@@ -3,9 +3,9 @@
 companion array to one variable group of the central worldtensor store.
 
 Resampling is chosen from the variable's semantics:
-  - name ends with "_sum" -> sum pooling
-  - integer dtype         -> mode (categorical)
-  - otherwise             -> average (continuous / mean / fraction)
+  - integer dtype -> mode (categorical)
+  - otherwise     -> average (every variable here is intensive: a mean,
+                     rate, density, fraction, or a *temporal* sum per cell)
 
 Survey of the source NetCDFs found every variable on disk is float32, nodata as
 NaN, no scale/offset, and no true categorical class-id raster (e.g.
@@ -43,9 +43,10 @@ def compressor():
 
 
 def resampling_method(varname: str, dtype) -> str:
-    name = varname.lower()
-    if name.endswith("_sum"):
-        return "sum"
+    # NOT sum pooling for "*_sum": in WorldTensor that suffix is a *temporal*
+    # aggregate (annual total), and the values are intensive (depth, rate,
+    # density), so spatial pooling must average. Summing scaled every level
+    # by 4/16/64. Averaging also keeps colours consistent across zoom levels.
     if np.issubdtype(dtype, np.integer):
         return "mode"
     return "average"
